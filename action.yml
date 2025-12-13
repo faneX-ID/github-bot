@@ -1,0 +1,34 @@
+name: 'faneX-ID Bot'
+description: 'GitHub Actions bot for PR management and workflow automation'
+author: 'faneX-ID Team'
+
+inputs:
+  github-token:
+    description: 'GitHub token for API access'
+    required: true
+  enabled:
+    description: 'Enable the bot'
+    required: false
+    default: 'true'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        pip install PyGithub requests
+
+    - name: Run bot
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_EVENT_PATH: ${{ github.event_path }}
+      run: |
+        python bot.py

@@ -1,0 +1,26 @@
+# faneX-ID Bot Configuration
+
+# Enable or disable the bot
+enabled: true
+
+# List of admin usernames (can use bot commands)
+admin_users:
+  - FaserF
+  - fabia
+
+# Automatically retry failed workflows (not recommended, use commands instead)
+auto_retry: false
+
+# Commands that require admin privileges
+admin_only_commands:
+  - retry
+  - test
+
+# Workflows that can be retried
+retryable_workflows:
+  - backend-ci
+  - frontend-ci
+  - docker-ci
+  - e2e-tests
+  - validate-integrations
+  - validate-readme

@@ -1,0 +1,42 @@
+{
+  "schema_version": "2.0.0",
+  "domain": "fanex_id_bot",
+  "name": "faneX-ID Bot",
+  "version": "1.0.0",
+  "min_core_version": "0.1.0",
+  "description": "GitHub Actions bot for PR management and workflow automation",
+  "author": "faneX-ID Team",
+  "category": "automation",
+  "logo": "https://github.com/faneX-ID/core/raw/main/images/Dashboard.png",
+  "implementations": {
+    "python": "bot.py"
+  },
+  "exposed_services": [],
+  "requirements": [
+    "pygithub>=2.0.0",
+    "requests>=2.31.0"
+  ],
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "default": true,
+        "description": "Enable the bot"
+      },
+      "admin_users": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "default": [],
+        "description": "List of admin usernames"
+      },
+      "auto_retry": {
+        "type": "boolean",
+        "default": false,
+        "description": "Automatically retry failed workflows"
+      }
+    }
+  }
+}
