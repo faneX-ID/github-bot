@@ -331,13 +331,20 @@ Available commands:
 def main():
     """Main entry point for the bot."""
     # Get environment variables
-    github_token = os.getenv("GITHUB_TOKEN")
+    # Prefer FANEX_BOT_TOKEN (GitHub App token) if available, otherwise use GITHUB_TOKEN
+    github_token = os.getenv("FANEX_BOT_TOKEN") or os.getenv("GITHUB_TOKEN")
     repo_name = os.getenv("GITHUB_REPOSITORY")
     event_path = os.getenv("GITHUB_EVENT_PATH")
 
     if not github_token or not repo_name:
-        print("Error: GITHUB_TOKEN and GITHUB_REPOSITORY must be set")
+        print("Error: FANEX_BOT_TOKEN or GITHUB_TOKEN and GITHUB_REPOSITORY must be set")
         sys.exit(1)
+    
+    # Log which token is being used (for debugging)
+    if os.getenv("FANEX_BOT_TOKEN"):
+        print("ℹ️ Using FANEX_BOT_TOKEN - comments will appear as faneX-ID Bot")
+    else:
+        print("ℹ️ Using GITHUB_TOKEN - comments will appear as github-actions[bot]")
 
     # Add current directory to path for imports
     bot_dir = os.path.dirname(os.path.abspath(__file__))
