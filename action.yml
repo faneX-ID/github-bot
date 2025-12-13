@@ -22,10 +22,18 @@ runs:
     - name: Install dependencies
       shell: bash
       run: |
-        pip install PyGithub requests
+        pip install -r requirements.txt
+
+    - name: Checkout bot code
+      uses: actions/checkout@v6
+      with:
+        repository: faneX-ID/github-bot
+        path: github-bot
+        token: ${{ inputs.github-token }}
 
     - name: Run bot
       shell: bash
+      working-directory: github-bot
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         GITHUB_REPOSITORY: ${{ github.repository }}

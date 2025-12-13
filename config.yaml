@@ -16,11 +16,68 @@ admin_only_commands:
   - retry
   - test
 
-# Workflows that can be retried
+# Workflows that can be retried (repository-specific)
 retryable_workflows:
-  - backend-ci
-  - frontend-ci
-  - docker-ci
-  - e2e-tests
-  - validate-integrations
-  - validate-readme
+  # Main repository (faneX-ID/core)
+  faneX-ID/core:
+    - backend-ci
+    - frontend-ci
+    - docker-ci
+    - e2e-tests
+    - validate-integrations
+    - validate-readme
+    - pr-assistant
+
+  # Integration repositories
+  faneX-ID/integrations:
+    - pr-assistant
+  faneX-ID/integrations-example:
+    - pr-assistant
+  faneX-ID/integration-validation:
+    - pr-assistant
+
+  # Workflow repositories
+  faneX-ID/workflows:
+    - pr-assistant
+  faneX-ID/workflows-example:
+    - pr-assistant
+
+  # Core repository
+  faneX-ID/core:
+    - pr-assistant
+    - ci
+
+  # GitHub Bot repository
+  faneX-ID/github-bot:
+    - pr-assistant
+
+  # Home Assistant Addon
+  faneX-ID/homeassistant-addon:
+    - pr-assistant
+    - ci
+
+  # Documentation
+  faneX-ID/faneX-ID.github.io:
+    - pr-assistant
+    - ci
+
+# Source of Truth for versions
+# Note: versions.json is in the main faneX-ID/core repository (private)
+# Access requires authentication via CORE_REPO_TOKEN or GITHUB_TOKEN
+main_repository: "faneX-ID/core"
+main_branch: "main"
+versions_url: "https://raw.githubusercontent.com/faneX-ID/core/main/.github/versions.json"
+
+# Repository visibility (for reference)
+# core is currently private, but fetches from public versions.json
+repository_visibility:
+  faneX-ID/core: "private"
+  faneX-ID/core: "private"
+  faneX-ID/integrations: "public"
+  faneX-ID/integrations-example: "public"
+  faneX-ID/workflows: "public"
+  faneX-ID/workflows-example: "public"
+  faneX-ID/integration-validation: "public"
+  faneX-ID/github-bot: "public"
+  faneX-ID/homeassistant-addon: "public"
+  faneX-ID/faneX-ID.github.io: "public"

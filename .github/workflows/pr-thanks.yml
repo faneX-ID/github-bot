@@ -1,0 +1,28 @@
+name: Thank Contributor
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  thank-you:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v8
+        with:
+          script: |
+            const author = context.payload.pull_request.user.login;
+            const bots = ['github-actions[bot]', 'dependabot[bot]', 'renovate[bot]'];
+            const admins = [context.repo.owner, 'FaserF', 'fabia'];
+            if (admins.includes(author) || bots.includes(author)) return;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🎉 **Thank you @${author}!**\n\nYour contribution to the **faneX-ID GitHub Bot** repository is valuable! 🚀`
+            })
+

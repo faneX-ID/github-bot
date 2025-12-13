@@ -10,16 +10,18 @@ from github.GithubException import GithubException
 class WorkflowManager:
     """Manages GitHub Actions workflows."""
 
-    def __init__(self, github: Github, repo_name: str):
+    def __init__(self, github: Github, repo_name: str, retryable_workflows: List[str] = None):
         """
         Initialize workflow manager.
 
         Args:
             github: GitHub API client
             repo_name: Repository name in format 'owner/repo'
+            retryable_workflows: List of workflow names that can be retried
         """
         self.github = github
         self.repo = github.get_repo(repo_name)
+        self.retryable_workflows = retryable_workflows or []
 
     def get_workflow_runs(self, sha: str) -> List[Dict]:
         """
@@ -97,6 +99,10 @@ class WorkflowManager:
         Returns:
             True if workflow was found and retry was triggered
         """
+        # Check if workflow is retryable
+        if self.retryable_workflows and workflow_name not in self.retryable_workflows:
+            return False
+        
         try:
             # Get workflow runs for this commit
             runs = self.repo.get_workflow_runs(head_sha=sha)
@@ -128,7 +134,12 @@ class WorkflowManager:
 
         for run in runs:
             # Only retry failed workflows that are not currently running
+            # and are in the retryable list (if list is provided)
             if run.conclusion == "failure" and run.status != "in_progress":
+                # Check if workflow is retryable
+                if self.retryable_workflows and run.name not in self.retryable_workflows:
+                    continue
+                
                 try:
                     run.rerun()
                     retried.append(run.name)

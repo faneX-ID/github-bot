@@ -12,6 +12,9 @@ from typing import Dict, List, Optional, Tuple
 from github import Github
 from workflow_manager import WorkflowManager
 from comment_handler import CommentHandler
+import yaml
+import requests
+from pathlib import Path
 
 
 class FanexIDBot:
@@ -27,8 +30,55 @@ class FanexIDBot:
         """
         self.github = Github(github_token)
         self.repo = self.github.get_repo(repo_name)
-        self.workflow_manager = WorkflowManager(self.github, repo_name)
+        self.repo_name = repo_name
+        
+        # Load configuration
+        self.config = self._load_config()
+        
+        # Get retryable workflows for this repository
+        self.retryable_workflows = self.config.get('retryable_workflows', {}).get(
+            repo_name, 
+            self.config.get('retryable_workflows', {}).get('default', [])
+        )
+        
+        self.workflow_manager = WorkflowManager(self.github, repo_name, self.retryable_workflows)
         self.comment_handler = CommentHandler(self.repo)
+    
+    def _load_config(self) -> dict:
+        """Load bot configuration from config.yaml or fetch from main repo."""
+        # Try to load local config first
+        config_path = Path("config.yaml")
+        if config_path.exists():
+            try:
+                with open(config_path) as f:
+                    config = yaml.safe_load(f) or {}
+                    if config:
+                        return config
+            except Exception:
+                pass
+        
+        # Fallback: fetch from main repository
+        main_repo = 'faneX-ID/core'
+        main_branch = 'main'
+        
+        try:
+            config_url = f"https://raw.githubusercontent.com/{main_repo}/{main_branch}/github-bot/config.yaml"
+            response = requests.get(config_url, timeout=10)
+            if response.status_code == 200:
+                config = yaml.safe_load(response.text) or {}
+                if config:
+                    return config
+        except Exception as e:
+            print(f"Could not fetch config from main repo: {e}")
+        
+        # Default config
+        return {
+            'enabled': True,
+            'admin_users': ['FaserF', 'fabia'],
+            'retryable_workflows': {},
+            'main_repository': 'faneX-ID/core',
+            'main_branch': 'main'
+        }
 
     def process_comment(self, comment_body: str, pr_number: int, commenter: str) -> Optional[str]:
         """
@@ -175,9 +225,16 @@ Available commands:
             pr: Pull request object
             commenter: Username
         """
+        # Check permissions
+        admin_users = self.config.get('admin_users', [])
+        admin_only_commands = self.config.get('admin_only_commands', [])
+        
+        if 'test' in admin_only_commands and commenter not in admin_users:
+            return f"❌ Only admins can use `/test`. Admins: {', '.join(admin_users)}"
+        
         try:
-            # Trigger test workflows (backend-ci, frontend-ci)
-            workflows_to_trigger = ["backend-ci", "frontend-ci"]
+            # Get available workflows from config or use defaults
+            workflows_to_trigger = self.retryable_workflows[:5] if self.retryable_workflows else []
             triggered = []
 
             for workflow_name in workflows_to_trigger:
@@ -188,7 +245,8 @@ Available commands:
                 workflows = ", ".join(f"`{w}`" for w in triggered)
                 return f"✅ Triggered test workflows: {workflows}"
             else:
-                return "❌ Could not trigger test workflows"
+                available = ", ".join(f"`{w}`" for w in self.retryable_workflows[:5]) if self.retryable_workflows else "none configured"
+                return f"❌ Could not trigger test workflows. Available workflows: {available}"
         except Exception as e:
             return f"❌ Error triggering tests: {str(e)}"
 
