@@ -9,7 +9,7 @@ import sys
 import re
 import json
 from typing import Dict, List, Optional, Tuple
-from github import Github
+from github import Github, Auth
 from workflow_manager import WorkflowManager
 from comment_handler import CommentHandler
 import yaml
@@ -28,7 +28,8 @@ class FanexIDBot:
             github_token: GitHub personal access token
             repo_name: Repository name in format 'owner/repo'
         """
-        self.github = Github(github_token)
+        # Fix: Use new Auth API to avoid deprecation warning
+        self.github = Github(auth=Auth.Token(github_token))
         self.repo = self.github.get_repo(repo_name)
         self.repo_name = repo_name
 

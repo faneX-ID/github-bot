@@ -46,7 +46,8 @@ class CommentHandler:
             for workflow in status["workflows"]:
                 name = workflow["name"]
                 state = workflow["status"]
-                conclusion = workflow.get("conclusion", "unknown")
+                # Fix: Handle None values properly
+                conclusion = workflow.get("conclusion") or "unknown"
 
                 # Emoji based on status
                 if conclusion == "success":
@@ -60,7 +61,11 @@ class CommentHandler:
                 else:
                     emoji = "⏳"
 
-                status_text = f"{emoji} {conclusion.upper()}" if conclusion != "unknown" else f"{emoji} {state.upper()}"
+                # Fix: Handle None values properly
+                if conclusion and conclusion != "unknown":
+                    status_text = f"{emoji} {conclusion.upper()}"
+                else:
+                    status_text = f"{emoji} {state.upper() if state else 'UNKNOWN'}"
                 workflow_url = workflow.get("url", "")
                 if workflow_url:
                     lines.append(f"| [`{name}`]({workflow_url}) | {status_text} |\n")
