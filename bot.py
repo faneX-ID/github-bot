@@ -259,7 +259,7 @@ Available commands:
             pr: Pull request object
         """
         try:
-            status = self.workflow_manager.get_workflow_status(pr.head.sha)
+            status = self.workflow_manager.get_workflow_status(pr.head.sha, pr.head.ref)
             return self._format_status(status)
         except Exception as e:
             return f"❌ Error getting status: {str(e)}"
@@ -303,29 +303,43 @@ Available commands:
 
         return "".join(lines)
 
-    def post_pr_summary(self, pr_number: int) -> None:
+    def post_pr_summary(self, pr_number: int, force_update: bool = False) -> None:
         """
         Post a summary comment on PR with CI status and helpful information.
 
         Args:
             pr_number: PR number
+            force_update: If True, always update even if comment exists
         """
         pr = self.repo.get_pull(pr_number)
-        status = self.workflow_manager.get_workflow_status(pr.head.sha)
+        status = self.workflow_manager.get_workflow_status(pr.head.sha, pr.head.ref)
+
+        # Check if all checks truly passed (including branch workflows)
+        all_passed, details = self.workflow_manager.are_all_checks_passed(pr.head.sha, pr.head.ref)
 
         # Check if we already posted a summary
         comments = pr.get_issue_comments()
-        bot_comments = [c for c in comments if c.user.login.endswith("[bot]") and "faneX-ID Bot" in c.body]
+        bot_comments = [
+            c for c in comments
+            if c.user.login.endswith("[bot]")
+            and ("faneX-ID Bot" in c.body or "🤖 faneX-ID Bot" in c.body)
+        ]
 
         # Format summary
-        summary = self.comment_handler.create_pr_summary(pr, status)
+        summary = self.comment_handler.create_pr_summary(pr, status, all_passed, details)
 
-        if bot_comments:
-            # Update existing comment
-            bot_comments[0].edit(summary)
+        if bot_comments and not force_update:
+            # Update existing comment (most recent one)
+            try:
+                bot_comments[0].edit(summary)
+                print(f"✅ Updated existing PR summary comment on PR #{pr_number}")
+            except Exception as e:
+                print(f"⚠️ Failed to update comment: {e}, creating new one")
+                pr.create_issue_comment(summary)
         else:
             # Create new comment
             pr.create_issue_comment(summary)
+            print(f"✅ Created new PR summary comment on PR #{pr_number}")
 
 
 def main():
@@ -339,7 +353,7 @@ def main():
     if not github_token or not repo_name:
         print("Error: FANEX_BOT_TOKEN or GITHUB_TOKEN and GITHUB_REPOSITORY must be set")
         sys.exit(1)
-    
+
     # Log which token is being used (for debugging)
     if os.getenv("FANEX_BOT_TOKEN"):
         print("ℹ️ Using FANEX_BOT_TOKEN - comments will appear as faneX-ID Bot")
@@ -361,27 +375,57 @@ def main():
     bot = FanexIDBot(github_token, repo_name)
 
     # Handle different event types
-    if event.get("action") == "created" and "comment" in event:
+    event_name = os.getenv("GITHUB_EVENT_NAME", "")
+
+    if event_name == "issue_comment" or (event.get("action") == "created" and "comment" in event):
         # Issue comment event
-        comment = event["comment"]
-        issue = event["issue"]
+        comment = event.get("comment") or {}
+        issue = event.get("issue") or {}
 
         # Check if it's a PR (issues and PRs use the same API)
         if "pull_request" in issue:
             pr_number = issue["number"]
-            commenter = comment["user"]["login"]
-            comment_body = comment["body"]
+            commenter = comment.get("user", {}).get("login", "")
+            comment_body = comment.get("body", "")
 
-            response = bot.process_comment(comment_body, pr_number, commenter)
-            if response:
-                # Post response as comment
-                pr = bot.repo.get_pull(pr_number)
-                pr.create_issue_comment(response)
+            # Skip if comment is from a bot (to avoid loops)
+            if commenter.endswith("[bot]") or commenter == "github-actions[bot]":
+                print(f"ℹ️ Skipping bot comment from {commenter}")
+            else:
+                print(f"📝 Processing comment from {commenter} on PR #{pr_number}")
+                response = bot.process_comment(comment_body, pr_number, commenter)
+                if response:
+                    # Post response as comment
+                    pr = bot.repo.get_pull(pr_number)
+                    pr.create_issue_comment(response)
+                    print(f"✅ Posted response to comment on PR #{pr_number}")
+                else:
+                    print(f"ℹ️ No response needed for comment on PR #{pr_number}")
 
-    elif event.get("action") in ["opened", "synchronize"] and "pull_request" in event:
+                # Also update the PR summary after processing command
+                print(f"🔄 Updating PR summary after comment...")
+                bot.post_pr_summary(pr_number, force_update=True)
+
+    elif event.get("action") in ["opened", "synchronize", "reopened"] and "pull_request" in event:
         # PR opened or updated
         pr_number = event["pull_request"]["number"]
+        print(f"📊 Posting/updating PR summary for PR #{pr_number}")
         bot.post_pr_summary(pr_number)
+
+    elif event_name == "workflow_call":
+        # Called from orchestrator - update PR summary
+        # Try to get PR number from context
+        pr_number = None
+        if "pull_request" in event:
+            pr_number = event["pull_request"]["number"]
+        elif "issue" in event and "pull_request" in event["issue"]:
+            pr_number = event["issue"]["number"]
+
+        if pr_number:
+            print(f"📊 Updating PR summary for PR #{pr_number} (workflow_call)")
+            bot.post_pr_summary(pr_number, force_update=True)
+        else:
+            print("⚠️ Could not determine PR number from workflow_call event")
 
 
 if __name__ == "__main__":

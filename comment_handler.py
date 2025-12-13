@@ -19,13 +19,15 @@ class CommentHandler:
         """
         self.repo = repo
 
-    def create_pr_summary(self, pr: PullRequest, status: Dict) -> str:
+    def create_pr_summary(self, pr: PullRequest, status: Dict, all_passed: bool = False, details: Dict = None) -> str:
         """
         Create a summary comment for a PR.
 
         Args:
             pr: Pull request object
             status: Workflow status dictionary
+            all_passed: Whether all checks truly passed (including branch workflows)
+            details: Additional details about check status
 
         Returns:
             Formatted markdown comment
@@ -36,6 +38,35 @@ class CommentHandler:
             f"**Author:** @{pr.user.login}\n",
             f"**Branch:** `{pr.head.ref}` → `{pr.base.ref}`\n",
         ]
+
+        # Add overall status
+        if details:
+            if details.get("truly_all_passed"):
+                lines.append("\n✅ **All checks passed successfully!**\n\n")
+            else:
+                lines.append("\n⚠️ **Some checks are still running or have failed.**\n\n")
+
+                if details.get("running_workflows"):
+                    lines.append(f"⏳ **{len(details['running_workflows'])} workflow(s) still running:**\n")
+                    for wf in details["running_workflows"][:10]:
+                        lines.append(f"- {wf['name']}: {wf['status']}\n")
+                    if len(details["running_workflows"]) > 10:
+                        lines.append(f"- ... and {len(details['running_workflows']) - 10} more\n")
+                    lines.append("\n")
+
+                if details.get("failed_workflows"):
+                    lines.append(f"❌ **{len(details['failed_workflows'])} workflow(s) failed:**\n")
+                    for wf in details["failed_workflows"][:10]:
+                        lines.append(f"- {wf['name']}: {wf.get('conclusion', 'failure')}\n")
+                    if len(details["failed_workflows"]) > 10:
+                        lines.append(f"- ... and {len(details['failed_workflows']) - 10} more\n")
+                    lines.append("\n")
+
+                if details.get("pending_checks"):
+                    lines.append(f"⏳ **{len(details['pending_checks'])} check(s) still running**\n\n")
+
+                if details.get("failed_checks"):
+                    lines.append(f"❌ **{len(details['failed_checks'])} check(s) failed**\n\n")
 
         # Add CI/CD status
         if status.get("workflows"):
@@ -81,7 +112,7 @@ class CommentHandler:
             lines.append(f"\n**Summary:** {success}/{total} passed, {failed} failed, {in_progress} in progress\n")
 
             # Add helpful commands if there are failures
-            if failed > 0:
+            if failed > 0 or (details and (details.get("failed_workflows") or details.get("failed_checks"))):
                 lines.append("\n### 🔧 Quick Actions\n\n")
                 lines.append("If workflows failed, you can retry them:\n\n")
                 lines.append("- `/retry` - Retry all failed workflows\n")
