@@ -102,7 +102,7 @@ class WorkflowManager:
         # Check if workflow is retryable
         if self.retryable_workflows and workflow_name not in self.retryable_workflows:
             return False
-        
+
         try:
             # Get workflow runs for this commit
             runs = self.repo.get_workflow_runs(head_sha=sha)
@@ -139,7 +139,7 @@ class WorkflowManager:
                 # Check if workflow is retryable
                 if self.retryable_workflows and run.name not in self.retryable_workflows:
                     continue
-                
+
                 try:
                     run.rerun()
                     retried.append(run.name)

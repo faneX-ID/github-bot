@@ -31,19 +31,19 @@ class FanexIDBot:
         self.github = Github(github_token)
         self.repo = self.github.get_repo(repo_name)
         self.repo_name = repo_name
-        
+
         # Load configuration
         self.config = self._load_config()
-        
+
         # Get retryable workflows for this repository
         self.retryable_workflows = self.config.get('retryable_workflows', {}).get(
-            repo_name, 
+            repo_name,
             self.config.get('retryable_workflows', {}).get('default', [])
         )
-        
+
         self.workflow_manager = WorkflowManager(self.github, repo_name, self.retryable_workflows)
         self.comment_handler = CommentHandler(self.repo)
-    
+
     def _load_config(self) -> dict:
         """Load bot configuration from config.yaml or fetch from main repo."""
         # Try to load local config first
@@ -56,11 +56,11 @@ class FanexIDBot:
                         return config
             except Exception:
                 pass
-        
+
         # Fallback: fetch from main repository
         main_repo = 'faneX-ID/core'
         main_branch = 'main'
-        
+
         try:
             config_url = f"https://raw.githubusercontent.com/{main_repo}/{main_branch}/github-bot/config.yaml"
             response = requests.get(config_url, timeout=10)
@@ -70,7 +70,7 @@ class FanexIDBot:
                     return config
         except Exception as e:
             print(f"Could not fetch config from main repo: {e}")
-        
+
         # Default config
         return {
             'enabled': True,
@@ -228,10 +228,10 @@ Available commands:
         # Check permissions
         admin_users = self.config.get('admin_users', [])
         admin_only_commands = self.config.get('admin_only_commands', [])
-        
+
         if 'test' in admin_only_commands and commenter not in admin_users:
             return f"❌ Only admins can use `/test`. Admins: {', '.join(admin_users)}"
-        
+
         try:
             # Get available workflows from config or use defaults
             workflows_to_trigger = self.retryable_workflows[:5] if self.retryable_workflows else []

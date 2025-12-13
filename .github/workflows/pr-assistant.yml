@@ -86,4 +86,3 @@ jobs:
               repo: context.repo.repo,
               body: `🎉 **Thank you @${author}!**\n\nYour contribution to the **faneX-ID GitHub Bot** repository is valuable! 🚀`
             });
-
