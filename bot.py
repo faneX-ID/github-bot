@@ -414,18 +414,65 @@ def main():
 
     elif event_name == "workflow_call":
         # Called from orchestrator - update PR summary
-        # Try to get PR number from context
+        # Try to get PR number from multiple sources
         pr_number = None
-        if "pull_request" in event:
-            pr_number = event["pull_request"]["number"]
-        elif "issue" in event and "pull_request" in event["issue"]:
-            pr_number = event["issue"]["number"]
+
+        # First try from environment variable (set by GitHub Actions workflow)
+        pr_number_str = os.getenv("GITHUB_PR_NUMBER") or os.getenv("PR_NUMBER")
+        if pr_number_str:
+            try:
+                pr_number = int(pr_number_str)
+                print(f"ℹ️ Got PR number from environment variable: {pr_number}")
+            except ValueError:
+                pass
+
+        # Try from event
+        if not pr_number:
+            if "pull_request" in event:
+                pr_number = event["pull_request"]["number"]
+            elif "issue" in event and "pull_request" in event["issue"]:
+                pr_number = event["issue"]["number"]
+
+        # Try to get PR number from the ref (if it's a PR branch)
+        if not pr_number:
+            ref = os.getenv("GITHUB_HEAD_REF") or os.getenv("GITHUB_REF", "")
+            # If we have a PR context, try to find the PR
+            if ref and "/" in ref:
+                try:
+                    # Try to get PRs for this ref
+                    pulls = bot.repo.get_pulls(head=f"{bot.repo.owner.login}:{ref}", state="open")
+                    for pr in pulls:
+                        pr_number = pr.number
+                        break
+                except Exception as e:
+                    print(f"⚠️ Could not find PR by ref: {e}")
+
+        # Last resort: try to get from GitHub context if available
+        if not pr_number and "GITHUB_EVENT_NAME" in os.environ:
+            # For pull_request events, the number should be in the context
+            # But for workflow_call, we need to infer it
+            # Check if we're in a PR context by looking at the ref
+            ref = os.getenv("GITHUB_HEAD_REF", "")
+            base_ref = os.getenv("GITHUB_BASE_REF", "")
+            if ref and base_ref:
+                # We're in a PR context, try to find the PR
+                try:
+                    pulls = list(bot.repo.get_pulls(head=f"{bot.repo.owner.login}:{ref}", base=base_ref, state="open", sort="updated", direction="desc"))
+                    if pulls:
+                        pr_number = pulls[0].number
+                        print(f"ℹ️ Found PR #{pr_number} by ref {ref} -> {base_ref}")
+                except Exception as e:
+                    print(f"⚠️ Could not find PR by refs: {e}")
 
         if pr_number:
             print(f"📊 Updating PR summary for PR #{pr_number} (workflow_call)")
             bot.post_pr_summary(pr_number, force_update=True)
         else:
             print("⚠️ Could not determine PR number from workflow_call event")
+            print(f"   Event keys: {list(event.keys()) if event else 'No event'}")
+            print(f"   GITHUB_HEAD_REF: {os.getenv('GITHUB_HEAD_REF', 'not set')}")
+            print(f"   GITHUB_BASE_REF: {os.getenv('GITHUB_BASE_REF', 'not set')}")
+            print(f"   GITHUB_REF: {os.getenv('GITHUB_REF', 'not set')}")
 
 
 if __name__ == "__main__":
