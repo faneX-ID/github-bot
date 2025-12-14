@@ -116,7 +116,7 @@ class WorkflowManager:
             "workflows": list(workflows.values()),
         }
 
-    def are_all_checks_passed(self, sha: str, branch: str = None) -> Tuple[bool, Dict]:
+    def are_all_checks_passed(self, sha: str, branch: str = None, exclude_workflows: List[str] = None) -> Tuple[bool, Dict]:
         """
         Check if all checks and workflows have passed for a commit and branch.
 
@@ -128,10 +128,13 @@ class WorkflowManager:
         Args:
             sha: Commit SHA
             branch: Optional branch name to also check workflows for the branch
+            exclude_workflows: List of workflow names to exclude from the check
 
         Returns:
             Tuple of (all_passed: bool, details: Dict)
         """
+        if exclude_workflows is None:
+            exclude_workflows = []
         import requests
 
         # Get checks for the SHA
@@ -170,24 +173,32 @@ class WorkflowManager:
             combined_status == "success"
         )
 
-        # Check if all workflows passed
+        # Check if all workflows passed (excluding specified workflows)
         workflows = workflow_status.get("workflows", [])
-        all_workflows_passed = (
-            len(workflows) > 0 and
-            all(w.get("status") == "completed" and w.get("conclusion") == "success"
-                for w in workflows)
-        )
-
-        # Check for running workflows
-        running_workflows = [
+        # Filter out excluded workflows
+        relevant_workflows = [
             w for w in workflows
-            if w.get("status") in ["in_progress", "queued", "waiting"]
+            if w.get("name") not in exclude_workflows
         ]
 
-        # Check for failed workflows
+        all_workflows_passed = (
+            len(relevant_workflows) > 0 and
+            all(w.get("status") == "completed" and w.get("conclusion") == "success"
+                for w in relevant_workflows)
+        )
+
+        # Check for running workflows (excluding excluded ones)
+        running_workflows = [
+            w for w in workflows
+            if w.get("name") not in exclude_workflows
+            and w.get("status") in ["in_progress", "queued", "waiting"]
+        ]
+
+        # Check for failed workflows (excluding excluded ones)
         failed_workflows = [
             w for w in workflows
-            if w.get("status") == "completed" and w.get("conclusion") == "failure"
+            if w.get("name") not in exclude_workflows
+            and w.get("status") == "completed" and w.get("conclusion") == "failure"
         ]
 
         # Check for pending checks
@@ -221,8 +232,9 @@ class WorkflowManager:
             "pending_checks": pending_checks,
             "failed_checks": failed_checks,
             "total_checks": len(check_runs),
-            "total_workflows": len(workflows),
+            "total_workflows": len(relevant_workflows),
             "combined_status": combined_status,
+            "excluded_workflows": exclude_workflows,
         }
 
         return (truly_all_passed, details)

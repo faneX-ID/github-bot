@@ -315,7 +315,12 @@ Available commands:
         status = self.workflow_manager.get_workflow_status(pr.head.sha, pr.head.ref)
 
         # Check if all checks truly passed (including branch workflows)
-        all_passed, details = self.workflow_manager.are_all_checks_passed(pr.head.sha, pr.head.ref)
+        # Exclude bot workflow from the check if it failed (bot can fail but other checks should pass)
+        all_passed, details = self.workflow_manager.are_all_checks_passed(
+            pr.head.sha,
+            pr.head.ref,
+            exclude_workflows=["faneX-ID Bot"]  # Exclude bot workflow from merge check
+        )
 
         # Check if we already posted a summary
         comments = pr.get_issue_comments()
@@ -340,6 +345,19 @@ Available commands:
             # Create new comment
             pr.create_issue_comment(summary)
             print(f"✅ Created new PR summary comment on PR #{pr_number}")
+
+        # Auto-merge if all checks passed (excluding bot workflow)
+        if all_passed and pr.mergeable and not pr.merged:
+            try:
+                # Check if PR is in a mergeable state
+                if pr.state == "open":
+                    # Attempt to merge
+                    pr.merge(merge_method="squash", commit_message=f"Auto-merge: {pr.title}")
+                    print(f"✅ Auto-merged PR #{pr_number}")
+                    pr.create_issue_comment("🤖 **Auto-merged by faneX-ID Bot** - All checks passed successfully!")
+            except Exception as e:
+                print(f"⚠️ Could not auto-merge PR #{pr_number}: {e}")
+                # Don't fail the workflow if merge fails (might be due to branch protection, etc.)
 
 
 def main():

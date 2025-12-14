@@ -39,3 +39,4 @@ jobs:
             git commit -m "style: auto-fix linting issues [skip ci]"
             git push origin HEAD:${{ github.head_ref }}
           fi
+
